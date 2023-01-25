@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
 import { ImageGallery } from '../ImageGallery/ImageGallery';
 import Searchbar from '../Searchbar/Searchbar';
 import { fetchImages } from 'components/api-service/api';
@@ -16,13 +16,8 @@ export default class App extends Component {
     isloading: false,
     error: null,
     page: 1,
-    totalImages: 12,
-    totalHits: 0,
+    showLoadMoreBtn: false,
   };
-
-  componentDidMount() {
-    window.addEventListener('keydown', this.handleKeyDown);
-  }
 
   async componentDidUpdate(_, prevState) {
     const { searchValue, page } = this.state;
@@ -30,12 +25,16 @@ export default class App extends Component {
       try {
         this.setState({ isloading: true, error: null });
         const data = await fetchImages(searchValue, page);
-        if (data.totalHits > 0) {
-          this.setState(prevState => ({
-            images: [...prevState.images, ...data.hits],
-            totalHits: data.totalHits,
-          }));
+        if (!data.totalHits) {
+          return toast.error(
+            'Sorry, there are no images matching your search query. Please try again.'
+          );
         }
+        toast.success(`Hooray! We found ${[data.totalHits]} images.`);
+        this.setState(prevState => ({
+          images: [...prevState.images, ...data.hits],
+          showLoadMoreBtn: page < Math.ceil(data.totalHits / 12),
+        }));
       } catch (error) {
         this.setState({ error: 'Error' });
       } finally {
@@ -44,12 +43,8 @@ export default class App extends Component {
     }
   }
 
-  componentWillUnmount() {
-    window.removeEventListener('keydown', this.handleKeyDown);
-  }
-
   handleFormSubmit = searchValue => {
-    this.setState({ searchValue, page: 1, images: [], totalImages: 12 });
+    this.setState({ searchValue, page: 1, images: [] });
   };
 
   setLargeImgUrl = url => {
@@ -60,21 +55,14 @@ export default class App extends Component {
     this.setState({ largeImgUrl: '' });
   };
 
-  handleKeyDown = e => {
-    if (e.code === 'Escape') {
-      this.onModalClose();
-    }
-  };
-
   loadMore = () => {
     this.setState(prevState => ({
       page: prevState.page + 1,
-      totalImages: (prevState.totalImages += 12),
     }));
   };
 
   render() {
-    const { images, error, isloading, largeImgUrl, totalImages, totalHits } =
+    const { images, error, isloading, largeImgUrl, showLoadMoreBtn } =
       this.state;
 
     return (
@@ -85,12 +73,8 @@ export default class App extends Component {
         )}
         {isloading && <Loader />}
         {error && <p style={{ color: 'red' }}>{error}</p>}
-        {largeImgUrl && (
-          <Modal img={largeImgUrl} onBackdropClick={this.onModalClose} />
-        )}
-        {totalHits > 0 && (
-          <Button disabled={totalImages >= totalHits} onClick={this.loadMore} />
-        )}
+        {largeImgUrl && <Modal img={largeImgUrl} onClose={this.onModalClose} />}
+        {showLoadMoreBtn && <Button onClick={this.loadMore} />}
         <ToastContainer autoClose={2000} pauseOnHover />
       </AppWrapper>
     );
